@@ -37,6 +37,16 @@ class SupabaseMemoryStore:
     def source(self, source_type: str, source_id: str):
         return self._rpc("memory_source", p_type=source_type, p_id=source_id)
 
+    def source_for_project(self, source_type, source_id, project_id):
+        return self._rpc("memory_source_project", p_type=source_type, p_id=source_id, p_project=project_id)
+
+    def capture(self, payload):
+        return self._rpc("capture_source", p_source=payload.model_dump(mode="json"))
+
+    def hold(self, source_type, source_id, candidates, reason):
+        return self._rpc("identification_review", p_type=source_type, p_id=source_id,
+                         p_candidates=candidates, p_reason=reason)
+
     def commit(self, project_id, revision, snapshot, source, evidence, event):
         return self._rpc(
             "memory_commit", p_project=project_id, p_revision=revision,

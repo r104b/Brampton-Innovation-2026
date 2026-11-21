@@ -4,11 +4,17 @@ import base64
 import hashlib
 import json
 import os
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from backend.services.context_generator import render_project_context
+from backend.services.clients import Client, load_registry
+from backend.services.context_generator import _SECRET, _EMAIL, render_context
+from backend.models.schemas import ProjectState
+from backend.services.context_router import load_routing_registry, route_context
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class GitHubClient:
@@ -17,8 +23,11 @@ class GitHubClient:
         self.token = token
 
     def request(self, method: str, path: str, data=None):
+        return self.api(method, f"repos/{self.repository}/{path}", data)
+
+    def api(self, method: str, path: str, data=None):
         request = Request(
-            f"https://api.github.com/repos/{self.repository}/{path}",
+            f"https://api.github.com/{path}",
             method=method,
             data=None if data is None else json.dumps(data).encode(),
             headers={"Authorization": f"Bearer {self.token}",
@@ -75,11 +84,209 @@ def publish_snapshot(client, markdown: str, *, base: str = "main") -> str | None
     return pr["html_url"]
 
 
+def client_bundle(client: Client, state: ProjectState, *, master: str, revision: str) -> dict[str, str]:
+    if state.project_id != client.project_id:
+        raise PermissionError("Cannot export another client's project")
+    state_json = state.model_dump_json(indent=2) + "\n"
+    # Structured exports must not bypass the Markdown redaction guard.
+    if _SECRET.search(state_json) or _EMAIL.search(state_json):
+        raise ValueError("State contains a sensitive-looking value; curate before export")
+    files = {
+        "context/CURRENT_STATE.md": render_context(state, fixture=client.synthetic),
+        "context/state.json": state_json,
+        ".sentra/client.json": json.dumps({
+            "client_id": client.client_id, "project_id": client.project_id,
+            "agent_purpose": client.agent_purpose, "synthetic": client.synthetic,
+        }, indent=2) + "\n",
+        ".sentra/master.json": json.dumps({"repository": master, "revision": revision,
+                                           "kit_version": 1}, indent=2) + "\n",
+    }
+    for name in ("AGENTS.md", "CLAUDE.md", "context_reader.py"):
+        target = name if name.endswith(".md") else "agent-kit/" + name
+        files[target] = (ROOT / "agent-kit" / name).read_text(encoding="utf-8")
+    if any(_SECRET.search(text) or _EMAIL.search(text) for text in files.values()):
+        raise ValueError("Bundle contains a sensitive-looking value; curate before export")
+    return files
+
+
+def publish_bundle(api, client: Client, files: dict[str, str]) -> str | None:
+    """Atomically commit one client's shared kit and state; never write master."""
+    if api.repository.casefold() != client.repository.casefold():
+        raise PermissionError("GitHub target does not match client registry")
+    metadata = api.request("GET", "")
+    if not metadata or not metadata.get("private"):
+        raise PermissionError("Provision a private client repository first")
+    changed = False
+    for path, text in sorted(files.items()):
+        current = api.request("GET", f"contents/{path}?{urlencode({'ref': client.base_branch})}")
+        if not current or base64.b64decode(current["content"]).decode("utf-8") != text:
+            changed = True
+    if not changed:
+        return None
+    digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()[:24]
+    branch = "automation/client-context-" + digest
+    prs = api.request("GET", "pulls?" + urlencode({
+        "state": "all", "head": f"{client.repository.split('/')[0]}:{branch}",
+        "base": client.base_branch,
+    }))
+    if prs:
+        return prs[0]["html_url"]
+    base_ref = api.request("GET", "git/ref/heads/" + quote(client.base_branch, safe=""))
+    if not base_ref:
+        raise LookupError("Client base branch is not initialized")
+    parent = base_ref["object"]["sha"]
+    commit = api.request("GET", f"git/commits/{parent}")
+    tree = api.request("POST", "git/trees", {
+        "base_tree": commit["tree"]["sha"],
+        "tree": [{"path": path, "mode": "100644", "type": "blob", "content": text}
+                 for path, text in sorted(files.items())],
+    })
+    new_commit = api.request("POST", "git/commits", {
+        "message": "Update client agent kit and sourced context", "tree": tree["sha"], "parents": [parent],
+    })
+    ref_path = "git/ref/heads/" + quote(branch, safe="")
+    existing_ref = api.request("GET", ref_path)
+    if existing_ref is None:
+        api.request("POST", "git/refs", {"ref": f"refs/heads/{branch}", "sha": new_commit["sha"]})
+    # A retry may find the already-created immutable branch. Do not force-push it.
+    pr = api.request("POST", "pulls", {
+        "title": f"Update {client.client_id} agent context", "head": branch,
+        "base": client.base_branch,
+        "body": "Client-isolated synthetic context and versioned master agent kit. "
+                "Review evidence, consent questions, and conflicts. Merge only the newest "
+                "state version; close stale snapshot PRs. No automatic merge.",
+    })
+    return pr["html_url"]
+
+
+def mapped_bundle(registry, project, mapping, state, revision):
+    client = Client(client_id=project.customer_id, project_id=project.project_id,
+                    repository=f"{mapping.owner}/{mapping.repository_name}",
+                    base_branch=mapping.branch, allowed_senders=project.allowed_senders,
+                    agent_purpose=project.agent_purpose)
+    files = client_bundle(client, state, master=registry.master_repository, revision=revision)
+    folder = str(Path(mapping.context_path).parent).replace("\\", "/")
+    manifest = files.pop(".sentra/client.json")
+    files[".sentra/client.json"] = json.dumps({"customer_id": project.customer_id, "synthetic": True}) + "\n"
+    files[f"{folder}/client.json"] = manifest
+    files[f"{folder}/state.json"] = files.pop("context/state.json")
+    markdown = files.pop("context/CURRENT_STATE.md")
+    files[mapping.context_path] = markdown
+    return client, files
+
+
+def sync_project(project_id, *, registry=None, store=None, read_state=None, api_factory=None, revision=None):
+    from backend.database.supabase_client import SupabaseMemoryStore
+    from backend.services.memory import MemoryService
+
+    store = store or SupabaseMemoryStore.from_env()
+    registry = registry or load_routing_registry(store)
+    project = next((p for p in registry.projects if p.project_id == project_id), None)
+    if project is None:
+        raise LookupError("Unknown project")
+    state = (read_state or MemoryService(store).get_project_state)(project_id)
+    routing = route_context(registry, project_id, state.version)
+    if routing.status != "resolved":
+        return routing
+    results = []
+    errors = 0
+    for mapping in routing.destinations:
+        try:
+            client, files = mapped_bundle(registry, project, mapping, state,
+                                          revision or os.environ["MASTER_REVISION"])
+            api = api_factory(client) if api_factory else GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
+            result = publish_bundle(api, client, files)
+            store._rpc("record_sync", p_mapping=mapping.mapping_id, p_version=state.version,
+                       p_status="published" if result else "unchanged")
+            results.append({"mapping_id": mapping.mapping_id, "pull_request": result})
+        except Exception:
+            store._rpc("record_sync", p_mapping=mapping.mapping_id, p_version=state.version, p_status="failed")
+            errors += 1
+    if errors:
+        raise RuntimeError("One or more mapped destinations failed; reconciliation will retry")
+    return results
+
+
+def sync_client(client: Client, *, registry=None, read_state=None, api=None, revision=None):
+    from backend.services.memory import get_project_state
+
+    registry = registry or load_registry()
+    if registry.client(client.client_id) != client:
+        raise PermissionError("Client is not the registered destination")
+    state = (read_state or get_project_state)(client.project_id)
+    files = client_bundle(client, state, master=registry.master_repository,
+                          revision=revision or os.environ["MASTER_REVISION"])
+    api = api or GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
+    return publish_bundle(api, client, files)
+
+
+def provision_client(client: Client, token: str) -> None:
+    """Explicit onboarding only, never create a repo from an incoming email."""
+    api = GitHubClient(client.repository, token)
+    existing = api.request("GET", "")
+    if existing:
+        if not existing.get("private"):
+            raise PermissionError("Existing client repository must be private")
+        return
+    owner, name = client.repository.split("/")
+    user = api.api("GET", "user")
+    endpoint = "user/repos" if user["login"].casefold() == owner.casefold() else f"orgs/{owner}/repos"
+    api.api("POST", endpoint, {"name": name, "private": True, "auto_init": True,
+                              "description": f"Synthetic agent build for {client.client_id}"})
+
+
 def main() -> None:
-    markdown = render_project_context(os.environ["CONTEXT_PROJECT_ID"], fixture=True)
-    client = GitHubClient(os.environ["GITHUB_REPOSITORY"], os.environ["CONTEXT_GITHUB_TOKEN"])
-    result = publish_snapshot(client, markdown, base=os.getenv("CONTEXT_BASE_BRANCH", "main"))
-    print(result or "Snapshot already matches the base branch.")
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--client-id")
+    parser.add_argument("--project-id")
+    parser.add_argument("--provision", action="store_true", help="Explicitly create private repositories")
+    args = parser.parse_args()
+    if os.getenv("REGISTRY_BACKEND", "supabase") == "supabase":
+        registry = load_routing_registry()
+        projects = [p for p in registry.projects if not args.project_id or p.project_id == args.project_id]
+        if args.client_id:
+            projects = [p for p in projects if p.customer_id == args.client_id]
+        if not projects:
+            raise SystemExit("No matching registered projects")
+        failures = 0
+        for project in projects:
+            try:
+                if args.provision:
+                    for mapping in route_context(registry, project.project_id, 0).destinations:
+                        client = Client(client_id=project.customer_id, project_id=project.project_id,
+                                        repository=f"{mapping.owner}/{mapping.repository_name}",
+                                        base_branch=mapping.branch, allowed_senders=project.allowed_senders,
+                                        agent_purpose=project.agent_purpose)
+                        provision_client(client, os.environ["CONTEXT_GITHUB_TOKEN"])
+                result = sync_project(project.project_id, registry=registry)
+                if hasattr(result, "status"):
+                    print(f"{project.project_id}: sync blocked ({result.status})")
+                    failures += 1
+                else:
+                    print(f"{project.project_id}: {len(result)} destination(s) reconciled")
+            except Exception as error:
+                print(f"{project.project_id}: sync failed ({type(error).__name__})")
+                failures += 1
+        if failures:
+            raise SystemExit(1)
+        return
+    registry = load_registry()  # Explicit legacy fixture compatibility only.
+    clients = [registry.client(args.client_id)] if args.client_id else registry.clients
+    failures = 0
+    for client in clients:
+        try:
+            if args.provision:
+                provision_client(client, os.environ["CONTEXT_GITHUB_TOKEN"])
+            result = sync_client(client, registry=registry)
+            print(f"{client.client_id}: {result or 'up to date'}")
+        except Exception as error:
+            # Do not echo network errors, payloads, or secrets into workflow logs.
+            print(f"{client.client_id}: sync failed ({type(error).__name__})")
+            failures += 1
+    if failures:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

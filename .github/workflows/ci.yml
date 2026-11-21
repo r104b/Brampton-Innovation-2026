@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r .github/ci/requirements.txt
       - name: Lint Python
-        run: python -m ruff check --config .github/ci/ruff.toml backend tests
+        run: python -m ruff check --config .github/ci/ruff.toml backend tests agent-kit
       - name: Run offline tests
         run: python -m pytest tests -q -p no:cacheprovider
       - name: Regenerate synthetic snapshot

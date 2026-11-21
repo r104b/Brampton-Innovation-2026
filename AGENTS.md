@@ -1,5 +1,18 @@
 # Shared coding-agent instructions
 
+## Revised master/client architecture
+
+This is the master control-plane repository. Read `docs/CLIENT_REPOSITORIES.md`
+for the current architecture, routing, and onboarding. Client exports belong in
+separate private repositories selected only by Supabase repository mappings; never put
+multiple clients' context into a client repository. Files under `agent-kit/`
+are the reusable, versioned instructions and context reader copied to clients.
+Master `context/` files are legacy synthetic test fixtures, not a client index.
+A customer may have multiple projects and a project multiple approved mappings.
+Resolve using `backend/services/context_router.py`; unresolved identification or
+unmapped/disabled/ambiguous destinations must never be guessed. Treat the old
+JSON registry as fixture compatibility only.
+
 ## Start each session
 
 Read `context/CURRENT_STATE.md` before planning or changing project behavior.
@@ -69,9 +82,10 @@ make a local integration easier.
 | B | `backend/ai/`, `backend/models/`, `backend/database/`, `backend/services/memory.py`, `supabase/` |
 | C | `backend/services/context_generator.py`, `backend/services/github_sync.py`, `context/`, `.github/`, `tests/`, `AGENTS.md`, `CLAUDE.md` |
 
-The active user assignment is Person C. Edit only Person C's files unless the
-user expands that scope. Other files, including shared documentation and
-fixtures, may be read for context. Do not overwrite teammates' changes.
+The user expanded the earlier Person C-only scope for the master/client
+architecture revision. Cross-workstream integration edits are authorized for
+that revision. Coordinate subsequent team work and do not overwrite teammates'
+changes. The owner table remains useful for dividing future work.
 
 ## Generate and validate context
 

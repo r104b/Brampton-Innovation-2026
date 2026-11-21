@@ -1,4 +1,4 @@
-name: Database context PR
+name: Client repository context sync
 
 on:
   schedule:
@@ -31,6 +31,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CONTEXT_GITHUB_TOKEN: ${{ secrets.CONTEXT_GITHUB_TOKEN }}
-          CONTEXT_PROJECT_ID: ${{ vars.CONTEXT_PROJECT_ID }}
-          CONTEXT_BASE_BRANCH: ${{ github.event.repository.default_branch }}
+          REGISTRY_BACKEND: supabase
+          MASTER_REPOSITORY: ${{ github.repository }}
+          MASTER_REVISION: ${{ github.sha }}
         run: python -m backend.services.github_sync

@@ -31,7 +31,7 @@ def _text(value: str) -> str:
 def _citations(evidence: list[EvidenceReference]) -> str:
     return "; ".join(
         f"source: {_text(ref.source_id)} / evidence: {_text(ref.evidence_id)} "
-        f"({ref.kind})"
+        f"({ref.kind})" + (f' excerpt: "{_text(ref.excerpt)}"' if ref.excerpt else "")
         for ref in sorted(evidence, key=lambda ref: (ref.source_id, ref.evidence_id))
     )
 
