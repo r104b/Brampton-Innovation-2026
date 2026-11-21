@@ -1,0 +1,23 @@
+{
+  "email": {
+    "source_id": "gmail-001",
+    "project_id": "demo-project",
+    "source_type": "email",
+    "subject": "Review meeting summary",
+    "sender": "fictional@example.com",
+    "received_at": "2026-11-21T15:00:00Z",
+    "body": "Please add SMS booking confirmations."
+  },
+  "extracted_item": {
+    "type": "deliverable",
+    "title": "Add SMS booking confirmations",
+    "description": "Client requests SMS booking confirmations.",
+    "proposed_status": "open",
+    "source_id": "gmail-001",
+    "source_quote": "Please add SMS booking confirmations.",
+    "requires_review": false
+  },
+  "accepted": {"status": "accepted", "source_id": "gmail-001"},
+  "replayed": {"status": "already_processed", "source_id": "gmail-001"},
+  "empty_state": {"version": 0, "deliverables": [], "questions": [], "decisions": []}
+}
