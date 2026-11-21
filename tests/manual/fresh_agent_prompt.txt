@@ -1,0 +1,18 @@
+This is a read-only context recovery test. Do not edit any files or call external services.
+
+Read the repository's AGENTS.md and context/CURRENT_STATE.md using file-reading tools. If this session uses CLAUDE.md as its entry point, read that too. Do not read tests/manual/fresh_agent_expected.md, the JSON fixtures, or prior conversation history for answers.
+
+Using only those instructions and the Markdown snapshot, answer:
+
+1. Which files did you actually read? What project ID, schema version, state version, timestamp, and live-or-synthetic designation did you find?
+2. What work is open, in progress, and blocked? What is blocking it?
+3. What is implemented but awaiting QA, and what is QA verified?
+4. What question still requires client consent? What question has an approved answer?
+5. Which communication-channel decision is active? What did it supersede? Has the pending proposal to remove SMS been applied?
+6. Who approved the production launch date, and what is that date?
+
+Cite record IDs and source IDs for each project-record claim, and evidence IDs for status or decision support. Do not infer approvals or missing facts. Clearly distinguish fictional project state from actual repository implementation progress.
+
+Copy identifiers exactly from the snapshot; do not add prefixes or rename them based on the synthetic designation. You may remove Markdown escape backslashes for display. Before responding, check every cited record, source, and evidence ID against the corresponding snapshot record.
+
+If you cannot access a required file, report that limitation instead of answering from assumptions. Show the file-read actions in the session so the human reviewer can verify actual access.
