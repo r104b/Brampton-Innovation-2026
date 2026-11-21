@@ -17,7 +17,24 @@
     "source_quote": "Please add SMS booking confirmations.",
     "requires_review": false
   },
-  "accepted": {"status": "accepted", "source_id": "gmail-001"},
-  "replayed": {"status": "already_processed", "source_id": "gmail-001"},
-  "empty_state": {"version": 0, "deliverables": [], "questions": [], "decisions": []}
+  "accepted": {
+    "status": "accepted",
+    "source_id": "gmail-001"
+  },
+  "replayed": {
+    "status": "already_processed",
+    "source_id": "gmail-001"
+  },
+  "empty_state": {
+    "schema_version": 1,
+    "project_id": "demo-project",
+    "project_name": "Fictional Booking Demo",
+    "project_summary": "Synthetic appointment booking project for offline integration tests.",
+    "version": 0,
+    "as_of": "2026-11-21T15:00:00Z",
+    "deliverables": [],
+    "questions": [],
+    "decisions": [],
+    "review_warnings": []
+  }
 }

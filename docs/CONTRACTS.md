@@ -37,12 +37,10 @@ project scope checks before processing. Never return `accepted` before durable
 storage succeeds. Deduplicate on `(source_type, source_id)`, including replays
 that try to change the project. Do not log bodies or tokens.
 
-`ProjectState` contains `version` (integer), `deliverables` (array), `questions`
-(array), and `decisions` (array). This baseline deliberately leaves each array's
-record schema unspecified, as the work plan does. Before integration, Person B
-and Person C must agree on record IDs, typed statuses, evidence/source IDs, and
-how review warnings are exposed. Do not treat the empty fixture as real state.
-Person B also defines version semantics alongside persistence.
+`ProjectState` is now fully typed. See [the B/C state contract](PROJECT_STATE.md)
+for fields, status rules, history, version semantics, and producer/consumer duties.
+The complete fictional example is `sample-data/project-state.json`; the empty
+example in `sample-data/contracts.json` is for validation only, not real state.
 
 ## Ownership and repository paths
 

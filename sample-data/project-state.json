@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "project_id": "demo-project",
+  "project_name": "Fictional Booking Demo",
+  "project_summary": "Synthetic appointment booking project for offline integration tests.",
+  "version": 7,
+  "as_of": "2026-11-21T15:00:00Z",
+  "deliverables": [
+    {
+      "id": "del-sms",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-sms",
+          "source_id": "gmail-001",
+          "kind": "requirement"
+        }
+      ],
+      "title": "SMS booking confirmations",
+      "description": "Send a confirmation after booking.",
+      "status": "open",
+      "blocked_reason": null
+    },
+    {
+      "id": "del-calendar",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-calendar",
+          "source_id": "synthetic-calendar",
+          "kind": "implementation"
+        }
+      ],
+      "title": "Calendar integration",
+      "description": "Connect the demo calendar.",
+      "status": "in_progress",
+      "blocked_reason": null
+    },
+    {
+      "id": "del-booking",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-booking",
+          "source_id": "synthetic-booking",
+          "kind": "implementation"
+        }
+      ],
+      "title": "Booking form",
+      "description": "Booking form code is implemented; QA is pending.",
+      "status": "implemented",
+      "blocked_reason": null
+    },
+    {
+      "id": "del-validation",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-validation",
+          "source_id": "synthetic-validation",
+          "kind": "requirement"
+        },
+        {
+          "evidence_id": "ev-qa",
+          "source_id": "synthetic-qa",
+          "kind": "qa_result"
+        }
+      ],
+      "title": "Required field validation",
+      "description": "Synthetic QA confirms required fields are enforced.",
+      "status": "verified",
+      "blocked_reason": null
+    },
+    {
+      "id": "del-reminder",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-reminder",
+          "source_id": "synthetic-reminder",
+          "kind": "requirement"
+        }
+      ],
+      "title": "Booking reminders",
+      "description": "Await client approval of reminder timing.",
+      "status": "blocked",
+      "blocked_reason": "Question q-timing needs a client answer."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q-timing",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-timing",
+          "source_id": "synthetic-timing",
+          "kind": "requirement"
+        }
+      ],
+      "question": "May reminders be sent 24 hours before the appointment?",
+      "state": "open",
+      "requires_client_consent": true,
+      "answer": null,
+      "answered_source_id": null
+    },
+    {
+      "id": "q-timezone",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-timezone",
+          "source_id": "synthetic-timezone",
+          "kind": "client_answer"
+        }
+      ],
+      "question": "Which timezone should the demo use?",
+      "state": "answered",
+      "requires_client_consent": false,
+      "answer": "America/Toronto",
+      "answered_source_id": "synthetic-timezone"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "dec-old",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-old",
+          "source_id": "synthetic-old",
+          "kind": "decision"
+        }
+      ],
+      "statement": "Use email confirmations only.",
+      "state": "superseded",
+      "supersedes_id": null
+    },
+    {
+      "id": "dec-current",
+      "updated_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-current",
+          "source_id": "synthetic-current",
+          "kind": "decision"
+        }
+      ],
+      "statement": "Use email and SMS confirmations.",
+      "state": "active",
+      "supersedes_id": "dec-old"
+    }
+  ],
+  "review_warnings": [
+    {
+      "id": "review-001",
+      "item_type": "decision",
+      "item_id": "dec-current",
+      "reason": "New feedback conflicts with the approved communication channels.",
+      "proposed_change": "Remove SMS confirmations; pending human review.",
+      "created_at": "2026-11-21T15:00:00Z",
+      "evidence": [
+        {
+          "evidence_id": "ev-conflict",
+          "source_id": "synthetic-conflict",
+          "kind": "decision"
+        }
+      ]
+    }
+  ]
+}
