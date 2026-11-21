@@ -4,7 +4,7 @@ Person B produces this read model; Person C consumes it without AI calls or
 database writes. `GET /api/projects/{id}/state` returns the same model that the
 read-only memory service returns. The Python service interface is
 `get_project_state(project_id: str) -> ProjectState`; sync versus async wiring
-is left to the endpoint implementation. No service implementation is added here.
+is left to the endpoint implementation.
 
 This extends section 2 of the work plan with team implementation decisions.
 Models in `backend/models/schemas.py` are authoritative for field validation.
@@ -112,10 +112,30 @@ Person B retains their history in the database audit trail.
 consent question, a sourced answer, superseded decision history, and a pending
 conflict. All content and evidence identifiers are fictional fixture data.
 
-Person B maps database rows into these types and enforces transactions, source
-validation, authorization, transitions, and revisions. Person C can now build
-the deterministic renderer against this fixture. Neither the fixture nor model
-validation constitutes a running database or endpoint implementation.
+Apply `supabase/migrations/001_initial.sql` and load `supabase/seed.sql` in
+the synthetic Supabase environment. The seed creates `maple-grove-demo`.
+Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the backend process.
+Keep the service role credential server-side. For Gemini ingestion, also set
+`GEMINI_API_KEY` and `GEMINI_MODEL` to a model supporting structured output.
+
+- Person A calls `backend.services.memory.ingest_email(email)` after authenticating
+  the request and authorizing its project. The service returns `IngestionResponse`
+  after the source transaction commits.
+- Person C calls `backend.services.memory.get_project_state(project_id)` after
+  project authorization. This reads Supabase and returns `ProjectState`.
+  A missing project raises `LookupError`.
+- An authenticated project reviewer uses `MemoryService.list_pending_reviews`
+  to inspect proposals and exact quotes, then `MemoryService.resolve_review`
+  to approve or reject them. Use `qa_passed=True` after confirming passing QA
+  for the exact deliverable. The caller supplies the authenticated reviewer
+  identity. Client answers require a sender on the project's client allowlist.
+- Tests can construct `MemoryService(store, FixtureExtractor(fixtures))` with
+  a mapping from source IDs to extracted items. The extraction and memory
+  regression tests run without provider credentials.
+
+Deduplication compares normalized titles and known demo aliases. The extractor
+uses stable topic titles for repeat requests and conflicts. Decisions,
+ambiguous changes, and status advances require human approval.
 
 Changes to this format require a coordinated PR and updated fixtures/tests.
 Breaking changes increment `schema_version`; project data changes increment
