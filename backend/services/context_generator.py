@@ -1,6 +1,7 @@
 """Deterministic context export. Run as a module from the repository root."""
 
 import argparse
+from collections.abc import Callable
 import html
 from pathlib import Path
 import re
@@ -30,7 +31,7 @@ def _text(value: str) -> str:
 def _citations(evidence: list[EvidenceReference]) -> str:
     return "; ".join(
         f"source: {_text(ref.source_id)} / evidence: {_text(ref.evidence_id)} "
-        f"({ref.kind})"
+        f"({ref.kind})" + (f' excerpt: "{_text(ref.excerpt)}"' if ref.excerpt else "")
         for ref in sorted(evidence, key=lambda ref: (ref.source_id, ref.evidence_id))
     )
 
@@ -116,14 +117,40 @@ def render_context(state: ProjectState, *, fixture: bool = False) -> str:
     return "\n".join(lines)
 
 
+def render_project_context(
+    project_id: str,
+    *,
+    read_state: Callable[[str], ProjectState] | None = None,
+    fixture: bool = False,
+) -> str:
+    """Read and render one project after the caller authorizes access.
+
+    The default reader uses server-side Supabase credentials. This function
+    does not implement HTTP authentication or grant access to a project.
+    """
+    if read_state is None:
+        from backend.services.memory import get_project_state
+
+        read_state = get_project_state
+    state = read_state(project_id)
+    if state.project_id != project_id:
+        raise PermissionError("State reader returned a different project")
+    return render_context(state, fixture=fixture)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, required=True, help="ProjectState JSON file")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--input", type=Path, help="ProjectState JSON file")
+    source.add_argument("--project-id", help="Authorized project to read from Supabase")
     parser.add_argument("--output", type=Path, required=True, help="Markdown destination")
     parser.add_argument("--fixture", action="store_true", help="Label output as synthetic")
     args = parser.parse_args()
-    state = ProjectState.model_validate_json(args.input.read_text(encoding="utf-8"))
-    markdown = render_context(state, fixture=args.fixture)
+    if args.input is not None:
+        state = ProjectState.model_validate_json(args.input.read_text(encoding="utf-8"))
+        markdown = render_context(state, fixture=args.fixture)
+    else:
+        markdown = render_project_context(args.project_id, fixture=args.fixture)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(markdown, encoding="utf-8", newline="\n")
 

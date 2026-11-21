@@ -45,7 +45,8 @@ def evidence_row(source, quote, kind):
 
 def add_evidence(record, row, timestamp):
     record["evidence"].append({
-        key: row[key] for key in ("evidence_id", "source_id", "kind")
+        **{key: row[key] for key in ("evidence_id", "source_id", "kind")},
+        "excerpt": row["quote"][:240],
     })
     record["updated_at"] = timestamp
 
@@ -82,16 +83,23 @@ class MemoryService:
     def get_project_state(self, project_id: str) -> ProjectState:
         return project_state(self._read(project_id))
 
-    def ingest_email(self, email: EmailPayload) -> IngestionResponse:
+    def _source(self, source_type, source_id, project_id):
+        if hasattr(self.store, "source_for_project"):
+            return self.store.source_for_project(source_type, source_id, project_id)
+        return self.store.source(source_type, source_id)
+
+    def ingest_email(self, email: EmailPayload, *, approved_items=None) -> IngestionResponse:
         self._read(email.project_id)
-        existing = self.store.source(email.source_type, email.source_id)
+        existing = self._source(email.source_type, email.source_id, email.project_id)
         if existing:
             if existing["project_id"] != email.project_id:
                 raise PermissionError("Source already belongs to another project")
             return IngestionResponse(status="already_processed", source_id=email.source_id)
 
-        extract = self.extract or GeminiExtractor.from_env()
-        items = extract(email)
+        items = approved_items
+        if items is None:
+            extract = self.extract or GeminiExtractor.from_env()
+            items = extract(email)
         source = email.model_dump(mode="json")
         valid = []
         for item in items:
@@ -147,7 +155,8 @@ class MemoryService:
                 "reason": "Human review required for the proposed change.",
                 "proposed_change": item.description.strip() or item.title,
                 "created_at": timestamp, "evidence": [{
-                    key: row[key] for key in ("evidence_id", "source_id", "kind")
+                    **{key: row[key] for key in ("evidence_id", "source_id", "kind")},
+                    "excerpt": row["quote"][:240],
                 }],
                 "status": "pending", "proposal": item.model_dump(mode="json"),
             })
@@ -197,7 +206,7 @@ class MemoryService:
 
     def _approve(self, snapshot, review, timestamp, qa_passed):
         item = ExtractedItem.model_validate(review["proposal"])
-        source = self.store.source("email", item.source_id)
+        source = self._source("email", item.source_id, snapshot["project_id"])
         if source is None or source["project_id"] != snapshot["project_id"]:
             raise ValueError("Review source is outside the project")
         kind = review["item_type"]

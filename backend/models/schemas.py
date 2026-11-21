@@ -1,8 +1,9 @@
 """Team interfaces. Coordinate contract changes through a reviewed PR."""
 
 from typing import Annotated, Literal, Self
+from datetime import datetime
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ContractModel(BaseModel):
@@ -10,13 +11,21 @@ class ContractModel(BaseModel):
 
 
 class EmailPayload(ContractModel):
-    source_id: str
-    project_id: str
+    source_id: Annotated[str, Field(min_length=1, max_length=256)]
+    project_id: Annotated[str, Field(min_length=1, max_length=128)]
     source_type: Literal["email"]
     subject: str
     sender: str
-    received_at: AwareDatetime
-    body: str
+    received_at: Annotated[AwareDatetime, Field(strict=False)]
+    body: Annotated[str, Field(min_length=1, max_length=100_000)]
+
+    @field_validator("received_at", mode="before")
+    @classmethod
+    def iso_timestamp(cls, value):
+        # FastAPI decodes JSON before validation; permit ISO strings there too.
+        if not isinstance(value, (str, datetime)):
+            raise ValueError("received_at must be an ISO 8601 timestamp")
+        return value
 
 
 class ExtractedItem(ContractModel):
@@ -29,8 +38,14 @@ class ExtractedItem(ContractModel):
     requires_review: bool
 
 
+class IncomingEmail(EmailPayload):
+    """Existing Gmail fields; absent identity is held for identification review."""
+
+    project_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
+
+
 class IngestionResponse(ContractModel):
-    status: Literal["accepted", "already_processed"]
+    status: Literal["accepted", "already_processed", "requires_review"]
     source_id: str
 
 
@@ -45,6 +60,7 @@ class EvidenceReference(ContractModel):
     evidence_id: RecordId
     source_id: RecordId
     kind: Literal["requirement", "implementation", "qa_result", "client_answer", "decision"]
+    excerpt: str | None = None
 
 
 class StateRecord(ContractModel):

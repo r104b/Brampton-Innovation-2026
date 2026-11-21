@@ -1,6 +1,9 @@
 """Service boundary between the email API and durable ingestion storage."""
 
 from typing import Any
+import inspect
+
+from starlette.concurrency import run_in_threadpool
 
 from backend.models.schemas import EmailPayload, IngestionResponse
 
@@ -19,7 +22,10 @@ async def accept_email(payload: EmailPayload, app_state: Any) -> IngestionRespon
     if handler is None:
         raise IngestionUnavailable("No durable email storage handler is configured")
 
-    result = handler(payload)
+    if inspect.iscoroutinefunction(handler):
+        result = await handler(payload)
+    else:
+        result = await run_in_threadpool(handler, payload)
     if hasattr(result, "__await__"):
         result = await result
     if isinstance(result, IngestionResponse):

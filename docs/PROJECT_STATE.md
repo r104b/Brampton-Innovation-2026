@@ -49,8 +49,11 @@ nonempty `evidence` array, plus the fields below. Each evidence reference has:
 | `source_id` | Public source identifier, such as the ingestion payload's Gmail message ID; not an internal database foreign-key UUID unless that is also the public ID |
 | `kind` | `requirement`, `implementation`, `qa_result`, `client_answer`, or `decision` |
 
-These references contain no raw body, email address, token, or source quote.
-Exact quotes and offsets remain in Person B's evidence storage. Person B must
+References may include optional `excerpt` (null or a concise source excerpt,
+currently capped at 240 characters for newly recorded evidence). Original exact
+quotes and offsets remain in Person B's evidence storage. Existing references
+without excerpts remain valid. Never include raw bodies, email addresses, or
+tokens in exported evidence. Person B must
 verify source spans, ownership, evidence type, and approvals before exporting a
 record. A `qa_result` label alone is not proof of successful QA: it may be emitted
 for a verified status only after Person B validates a passing result for that work.

@@ -1,0 +1,23 @@
+{
+  "master_repository": "YOUR_TEAM/sentra-master",
+  "clients": [
+    {
+      "client_id": "maple-grove",
+      "project_id": "maple-grove-demo",
+      "repository": "YOUR_TEAM/maple-grove-agent",
+      "base_branch": "main",
+      "allowed_senders": ["jordan.lee@example.test"],
+      "agent_purpose": "Build and maintain the fictional clinic appointment assistant.",
+      "synthetic": true
+    },
+    {
+      "client_id": "harbor-demo",
+      "project_id": "harbor-demo",
+      "repository": "YOUR_TEAM/harbor-agent",
+      "base_branch": "main",
+      "allowed_senders": ["owner@harbor.example.test"],
+      "agent_purpose": "Build and maintain the fictional marine service intake assistant.",
+      "synthetic": true
+    }
+  ]
+}

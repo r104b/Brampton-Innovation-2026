@@ -1,5 +1,15 @@
 # Shared contracts
 
+Deployment update: this repository is the master engine. See
+[CLIENT_REPOSITORIES.md](CLIENT_REPOSITORIES.md) for the authoritative
+customer-to-project-to-destination relationships held in Supabase. The original
+ingestion fields remain compatible; missing project ID can be held for review.
+`X-Sentra-Client-ID` can additionally identify the registered customer.
+The API requires a configured registry and matching sender/project route before
+calling memory. The LLM never chooses or creates a destination repository.
+`IngestionResponse.status` also permits `requires_review` for durably captured
+unassigned sources. See the current guide for scoped GET and review endpoints.
+
 Baseline from section 2 of `SentraContext_Three_Person_Work_Plan.pdf`, with
 ingestion response codes from section 3 of the implementation guide.
 These are interface definitions, not completed endpoint implementations.
