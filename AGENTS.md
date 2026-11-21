@@ -3,6 +3,11 @@
 ## Start each session
 
 Read `context/CURRENT_STATE.md` before planning or changing project behavior.
+When `context/DATABASE_STATE.md` exists, read it too and use it for its own
+project's database-exported state. Do not combine different project IDs or
+assume the fixture's version number is comparable to the database project's.
+The database file reaches the base branch only after its context PR is merged;
+it may lag Supabase. Check its version and timestamp and report that limitation.
 Check its project ID, schema version, state version, timestamp, and fixture label.
 The checked-in snapshot currently contains synthetic demonstration data; do not
 present it as live client requirements or as evidence of this repository's
