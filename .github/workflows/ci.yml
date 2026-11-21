@@ -1,0 +1,47 @@
+name: Offline checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-checks:
+    name: Lint, tests, and fixture snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            .github/ci/requirements.txt
+      - name: Install dependencies
+        run: python -m pip install -r .github/ci/requirements.txt
+      - name: Lint Python
+        run: python -m ruff check --config .github/ci/ruff.toml backend tests
+      - name: Run offline tests
+        run: python -m pytest tests -q -p no:cacheprovider
+      - name: Regenerate synthetic snapshot
+        run: >-
+          python -m backend.services.context_generator
+          --input sample-data/project-state.json
+          --output context/CURRENT_STATE.md --fixture
+      - name: Verify committed snapshot is current
+        run: git diff --exit-code -- context/CURRENT_STATE.md
