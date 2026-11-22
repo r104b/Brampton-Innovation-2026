@@ -3,6 +3,7 @@
 import logging
 import os
 from email.utils import parseaddr
+from urllib.error import HTTPError
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 from starlette.concurrency import run_in_threadpool
@@ -60,8 +61,10 @@ async def ingest_email(
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail="Project access denied") from exc
         except Exception as exc:
+            error_detail = (f"HTTPError, upstream HTTP {exc.code}"
+                            if isinstance(exc, HTTPError) else type(exc).__name__)
             logging.getLogger(__name__).warning(
-                "Email ingestion failed during %s (%s)", stage, type(exc).__name__
+                "Email ingestion failed during %s (%s)", stage, error_detail
             )
             raise HTTPException(status_code=503, detail="Ingestion temporarily unavailable") from exc
         if project_id and os.getenv("CLIENT_SYNC_ENABLED", "false").lower() == "true":
