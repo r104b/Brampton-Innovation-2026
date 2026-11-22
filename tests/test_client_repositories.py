@@ -10,10 +10,19 @@ from pydantic import ValidationError
 from backend.main import app
 from backend.models.schemas import IngestionResponse, ProjectState
 from backend.services.clients import ClientRegistry, route_email
-from backend.services.github_sync import client_bundle, publish_bundle, sync_client
+from backend.services.github_sync import client_bundle, master_revision, publish_bundle, sync_client
 from test_memory import email
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_master_revision_uses_running_render_commit_and_local_fallback(monkeypatch):
+    monkeypatch.setenv("MASTER_REVISION", "local-fallback")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "render-sha")
+    assert master_revision() == "render-sha"
+    assert master_revision("explicit-sha") == "explicit-sha"
+    monkeypatch.delenv("RENDER_GIT_COMMIT")
+    assert master_revision() == "local-fallback"
 
 
 @pytest.fixture

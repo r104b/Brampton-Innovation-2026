@@ -17,6 +17,13 @@ from backend.services.context_router import load_routing_registry, route_context
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def master_revision(revision: str | None = None) -> str:
+    """Return the running master commit, with explicit/local overrides for offline use."""
+    if revision:
+        return revision
+    return os.getenv("RENDER_GIT_COMMIT") or os.environ["MASTER_REVISION"]
+
+
 class GitHubClient:
     def __init__(self, repository: str, token: str):
         self.repository = repository
@@ -196,7 +203,7 @@ def sync_project(project_id, *, registry=None, store=None, read_state=None, api_
     for mapping in routing.destinations:
         try:
             client, files = mapped_bundle(registry, project, mapping, state,
-                                          revision or os.environ["MASTER_REVISION"])
+                                          master_revision(revision))
             api = api_factory(client) if api_factory else GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
             result = publish_bundle(api, client, files)
             store._rpc("record_sync", p_mapping=mapping.mapping_id, p_version=state.version,
@@ -218,7 +225,7 @@ def sync_client(client: Client, *, registry=None, read_state=None, api=None, rev
         raise PermissionError("Client is not the registered destination")
     state = (read_state or get_project_state)(client.project_id)
     files = client_bundle(client, state, master=registry.master_repository,
-                          revision=revision or os.environ["MASTER_REVISION"])
+                          revision=master_revision(revision))
     api = api or GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
     return publish_bundle(api, client, files)
 
