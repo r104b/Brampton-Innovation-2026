@@ -141,6 +141,30 @@ def test_unchanged_bundle_and_replay_do_not_write(registry):
         assert all(method == "GET" for method, _, _ in repo.calls)
 
 
+def test_master_revision_only_does_not_create_client_context_pr(registry):
+    client = registry.clients[0]
+    old_files = client_bundle(client, state_for(client), master=registry.master_repository,
+                              revision="old-deploy")
+    new_files = client_bundle(client, state_for(client), master=registry.master_repository,
+                              revision="new-deploy")
+    repo = FakeRepo(client, content=old_files)
+    assert publish_bundle(repo, client, new_files) is None
+    assert all(method == "GET" for method, _, _ in repo.calls)
+
+
+def test_context_pr_body_lists_changed_files(registry):
+    client = registry.clients[0]
+    old_files = client_bundle(client, state_for(client), master=registry.master_repository,
+                              revision="same-deploy")
+    new_files = dict(old_files)
+    new_files["context/CURRENT_STATE.md"] += "\nNew fictional requirement.\n"
+    repo = FakeRepo(client, content=old_files)
+    publish_bundle(repo, client, new_files)
+    pull = next(data for method, path, data in repo.calls if method == "POST" and path == "pulls")
+    assert "`context/CURRENT_STATE.md`" in pull["body"]
+    assert "Project context/state changed: yes" in pull["body"]
+
+
 def test_public_or_wrong_repository_rejected(registry):
     one, two = registry.clients
     with pytest.raises(PermissionError):

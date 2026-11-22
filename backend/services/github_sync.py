@@ -126,12 +126,15 @@ def publish_bundle(api, client: Client, files: dict[str, str]) -> str | None:
     metadata = api.request("GET", "")
     if not metadata or not metadata.get("private"):
         raise PermissionError("Provision a private client repository first")
-    changed = False
+    changed_paths = []
     for path, text in sorted(files.items()):
         current = api.request("GET", f"contents/{path}?{urlencode({'ref': client.base_branch})}")
         if not current or base64.b64decode(current["content"]).decode("utf-8") != text:
-            changed = True
-    if not changed:
+            changed_paths.append(path)
+    # A deployment SHA alone is metadata, not a client-context update. Avoid
+    # opening a client PR just because the backend was redeployed.
+    content_paths = [path for path in changed_paths if path != ".sentra/master.json"]
+    if not content_paths:
         return None
     digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()[:24]
     branch = "automation/client-context-" + digest
@@ -159,12 +162,24 @@ def publish_bundle(api, client: Client, files: dict[str, str]) -> str | None:
     if existing_ref is None:
         api.request("POST", "git/refs", {"ref": f"refs/heads/{branch}", "sha": new_commit["sha"]})
     # A retry may find the already-created immutable branch. Do not force-push it.
+    state_paths = [path for path in content_paths
+                   if path.endswith("/state.json") or path.endswith("/CURRENT_STATE.md")
+                   or path == "context/CURRENT_STATE.md"]
+    summary = ["Changed files compared with the base branch:"]
+    summary.extend(f"- `{path}`" for path in content_paths)
+    summary.append("")
+    summary.append("Project context/state changed: " + ("yes" if state_paths else "no"))
+    if ".sentra/master.json" in changed_paths:
+        summary.append("The bundle also pins the master revision used to generate this update.")
+    summary.extend([
+        "",
+        "Review evidence, consent questions, and conflicts. Merge only the newest state version;",
+        "close stale snapshot PRs. No automatic merge.",
+    ])
     pr = api.request("POST", "pulls", {
         "title": f"Update {client.client_id} agent context", "head": branch,
         "base": client.base_branch,
-        "body": "Client-isolated synthetic context and versioned master agent kit. "
-                "Review evidence, consent questions, and conflicts. Merge only the newest "
-                "state version; close stale snapshot PRs. No automatic merge.",
+        "body": "\n".join(summary),
     })
     return pr["html_url"]
 
