@@ -1,5 +1,20 @@
 # Test Gmail setup
 
+## Deploy the backend on Render
+
+The repository includes a `render.yaml` Blueprint for the FastAPI web service.
+In Render, create a Blueprint Instance from this GitHub repository, then add
+the requested environment values in the service dashboard. Keep credentials in
+Render's environment settings; do not commit them or put them in Apps Script
+source. The backend needs a test Supabase project with the migrations and routing
+seed applied, a Gemini API key/model, and the exact master repository name.
+
+After the first deploy, check the service logs and open `https://<service>.onrender.com/health`.
+Use `https://<service>.onrender.com/api/ingest/email` as `INGEST_URL` below.
+`/health` only confirms that the process responds; it does not check Supabase or
+Gmail readiness. Leave `CLIENT_SYNC_ENABLED` false for the initial connection.
+The Gmail trigger and live database path still need test-account validation.
+
 Create Apps Script from `Code.gs` in a dedicated test mailbox. Configure Script
 Properties `INGEST_URL` (HTTPS backend `/api/ingest/email`), `INGEST_TOKEN`, and
 `CLIENT_ROUTES_JSON`, for example `{"maple-grove":"maple-grove-demo"}`.
