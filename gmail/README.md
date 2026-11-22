@@ -15,6 +15,14 @@ Use `https://<service>.onrender.com/api/ingest/email` as `INGEST_URL` below.
 Gmail readiness. Leave `CLIENT_SYNC_ENABLED` false for the initial connection.
 The Gmail trigger and live database path still need test-account validation.
 
+To publish generated context as client-repository pull requests, first confirm
+each active Supabase mapping points to an existing private repository and base
+branch. Then set `CLIENT_SYNC_ENABLED=true` in the Render service and provide
+`CONTEXT_GITHUB_TOKEN` with repository Contents and Pull requests read/write
+permissions, plus `MASTER_REVISION` set to the exact master commit running on
+Render. The sync opens or reuses a reviewable pull request; it never merges it.
+Keep publishing disabled until those destinations and credentials are ready.
+
 Create Apps Script from `Code.gs` in a dedicated test mailbox. Configure Script
 Properties `INGEST_URL` (HTTPS backend `/api/ingest/email`), `INGEST_TOKEN`, and
 `CLIENT_ROUTES_JSON`, for example `{"maple-grove":"maple-grove-demo"}`.
