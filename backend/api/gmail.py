@@ -15,14 +15,14 @@ from backend.services.clients import route_email
 router = APIRouter(tags=["ingestion"])
 
 
-def sync_after_ingestion(client, registry):
+def sync_after_ingestion(client, registry, *, email_subject=None):
     from backend.services.github_sync import sync_client, sync_project
 
     try:
         if isinstance(registry, RoutingRegistry):
-            sync_project(client, registry=registry)
+            sync_project(client, registry=registry, email_subject=email_subject)
         else:
-            sync_client(client, registry=registry)
+            sync_client(client, registry=registry, email_subject=email_subject)
     except Exception as error:
         logging.getLogger(__name__).warning("Client context sync failed (%s); scheduled reconciliation will retry",
                                            type(error).__name__)
@@ -60,7 +60,7 @@ async def ingest_email(
         except Exception as exc:
             raise HTTPException(status_code=503, detail="Ingestion temporarily unavailable") from exc
         if project_id and os.getenv("CLIENT_SYNC_ENABLED", "false").lower() == "true":
-            background_tasks.add_task(sync_after_ingestion, project_id, registry)
+            background_tasks.add_task(sync_after_ingestion, project_id, registry, email_subject=payload.subject)
         response.status_code = 200 if result.status == "already_processed" else 202
         return result
     try:
@@ -84,7 +84,7 @@ async def ingest_email(
         raise HTTPException(status_code=503, detail="Ingestion temporarily unavailable") from exc
 
     if os.getenv("CLIENT_SYNC_ENABLED", "false").lower() == "true":
-        background_tasks.add_task(sync_after_ingestion, client, registry)
+        background_tasks.add_task(sync_after_ingestion, client, registry, email_subject=payload.subject)
 
     response.status_code = (
         status.HTTP_200_OK

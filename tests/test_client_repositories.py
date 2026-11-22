@@ -132,6 +132,22 @@ def test_unchanged_bundle_and_replay_do_not_write(registry):
         assert all(method == "GET" for method, _, _ in repo.calls)
 
 
+def test_email_title_does_not_create_a_duplicate_branch_or_rename_existing_pr(registry):
+    client = registry.clients[0]
+    files = {"context/CURRENT_STATE.md": "Synthetic snapshot"}
+    first, second = FakeRepo(client), FakeRepo(client)
+    publish_bundle(first, client, files, email_subject="First feedback", snapshot_version=3)
+    publish_bundle(second, client, files, email_subject="Repeated feedback", snapshot_version=3)
+    first_pr = next(data for method, path, data in first.calls if method == "POST" and path == "pulls")
+    second_pr = next(data for method, path, data in second.calls if method == "POST" and path == "pulls")
+    assert first_pr["head"] == second_pr["head"]
+    assert first_pr["title"] == "Maple Grove: First feedback (v3)"
+    assert second_pr["title"] == "Maple Grove: Repeated feedback (v3)"
+    replay = FakeRepo(client, prs=[{"html_url": "existing"}])
+    assert publish_bundle(replay, client, files, email_subject="Repeated feedback", snapshot_version=3) == "existing"
+    assert all(method == "GET" for method, _, _ in replay.calls)
+
+
 def test_public_or_wrong_repository_rejected(registry):
     one, two = registry.clients
     with pytest.raises(PermissionError):
@@ -172,8 +188,9 @@ def test_api_auth_routing_and_sync(registry, monkeypatch):
     monkeypatch.setenv("CLIENT_SYNC_ENABLED", "true")
     calls = []
     syncs = []
-    monkeypatch.setattr("backend.api.gmail.sync_after_ingestion", lambda client, registry: syncs.append(client.client_id))
-    payload = email("api-test", "Please add SMS confirmations.")
+    monkeypatch.setattr("backend.api.gmail.sync_after_ingestion",
+                        lambda client, registry, **kwargs: syncs.append((client.client_id, kwargs["email_subject"])))
+    payload = email("api-test", "Please add SMS confirmations.").model_copy(update={"subject": "Demo review: timezone and SMS"})
     with TestClient(app) as http:
         monkeypatch.setattr(app.state, "client_registry", registry, raising=False)
 
@@ -188,4 +205,4 @@ def test_api_auth_routing_and_sync(registry, monkeypatch):
         headers["X-Sentra-Client-ID"] = "harbor-demo"
         assert http.post("/api/ingest/email", headers=headers, json=payload.model_dump(mode="json")).status_code == 403
         assert calls == ["api-test"]
-        assert syncs == ["maple-grove"]
+        assert syncs == [("maple-grove", "Demo review: timezone and SMS")]

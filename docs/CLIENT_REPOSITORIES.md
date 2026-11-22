@@ -132,6 +132,16 @@ GitHub publishes only the registered project bundle, on a content-hash branch,
 and opens a PR. It never auto-merges or force-pushes. Identical content reuses its
 PR; close stale snapshot proposals in favor of the latest state version.
 
+New Gmail-triggered PR titles include the client ID as a display label, the
+triggering email subject, and the exported state version, for example
+`Maple Grove: Demo Review Meeting Summary (v3)`. Subjects are kept to one line,
+common secret/email patterns are redacted, and long titles are shortened.
+Scheduled/review-triggered sync without an email subject uses a versioned
+`Update project context` fallback. The title names the trigger, not every change
+in a snapshot that may also contain other feedback. Content hashes still control
+deduplication; retries reuse existing PRs and preserve their original titles.
+This does not rename already-created PRs or generate a summary with another LLM.
+
 Enable the master scheduled workflow with `CONTEXT_SYNC_ENABLED=true`. It needs
 Actions secrets `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and a
 `CONTEXT_GITHUB_TOKEN` with Contents/Pull requests writes to client repos. The

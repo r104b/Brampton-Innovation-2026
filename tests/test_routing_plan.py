@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from backend.main import app
 from backend.models.routing import RoutingRegistry, ReviewAssignment
 from backend.models.schemas import IncomingEmail, ProjectState
+from backend.models.schemas import IngestionResponse
 from backend.services.context_router import route_context
 from backend.services.context_export import export_project
 from backend.services.github_sync import mapped_bundle, sync_project
@@ -182,10 +183,39 @@ def test_mapped_bundle_uses_registered_path_and_records_sync_status(registry):
     assert "context/project-a/state.json" in files
     assert "context/CURRENT_STATE.md" not in files
     store = MultiStore(registry)
+    repo = FakeRepo(client)
     sync_project(project.project_id, registry=registry, store=store, read_state=lambda _: state,
-                 api_factory=lambda client: FakeRepo(client), revision="master-commit")
+                 api_factory=lambda client: repo, revision="master-commit", email_subject="Booking demo review")
+    pr = next(data for method, path, data in repo.calls if method == "POST" and path == "pulls")
+    assert pr["title"] == f"Customer A: Booking demo review (v{state.version})"
     assert store.rpc_calls[-1] == ("record_sync", {
         "p_mapping": mapping.mapping_id, "p_version": state.version, "p_status": "published"})
+
+
+def test_database_registry_ingestion_forwards_email_subject_to_background_sync(registry, monkeypatch):
+    monkeypatch.setenv("INGEST_TOKEN", "fictional-ingest-key")
+    monkeypatch.setenv("CLIENT_SYNC_ENABLED", "true")
+    monkeypatch.setattr("backend.database.supabase_client.SupabaseMemoryStore.from_env", lambda: object())
+    monkeypatch.setattr("backend.services.identification.ingest_identified", lambda *args: (
+        IngestionResponse(status="accepted", source_id="source-1"), "project-a"))
+    calls = []
+    monkeypatch.setattr("backend.api.gmail.sync_after_ingestion", lambda client, registry, **kw: calls.append((client, kw)))
+    payload = incoming("project-a").model_copy(update={"subject": "Rescheduling requirements"})
+    with TestClient(app) as http:
+        monkeypatch.setattr(app.state, "registry_loader", lambda: registry, raising=False)
+        response = http.post("/api/ingest/email", json=payload.model_dump(mode="json"),
+                             headers={"Authorization": "Bearer fictional-ingest-key"})
+    assert response.status_code == 202
+    assert calls == [("project-a", {"email_subject": "Rescheduling requirements"})]
+
+
+def test_background_sync_passes_subject_to_project_publisher(registry, monkeypatch):
+    from backend.api.gmail import sync_after_ingestion
+
+    calls = []
+    monkeypatch.setattr("backend.services.github_sync.sync_project", lambda project, **kw: calls.append((project, kw)))
+    sync_after_ingestion("project-a", registry, email_subject="New booking feedback")
+    assert calls == [("project-a", {"registry": registry, "email_subject": "New booking feedback"})]
 
 
 def test_local_exports_select_correct_customer_repository_and_project_folder(registry, tmp_path):

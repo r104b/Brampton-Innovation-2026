@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import unicodedata
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
@@ -15,6 +16,24 @@ from backend.models.schemas import ProjectState
 from backend.services.context_router import load_routing_registry, route_context
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def context_pr_title(client_id: str, *, version: int | None = None,
+                     email_subject: str | None = None) -> str:
+    """Label a snapshot by its triggering email without changing deduplication."""
+    def clean(value):
+        value = _SECRET.sub("[REDACTED]", value)
+        value = _EMAIL.sub("[REDACTED EMAIL]", value)
+        return " ".join("".join(" " if unicodedata.category(char).startswith("C") else char
+                                for char in value).split())
+
+    prefix = clean(client_id.replace("-", " ").title()) + ": "
+    suffix = f" (v{version})" if version is not None else ""
+    subject = clean(email_subject or "") or "Update project context"
+    available = max(4, 200 - len(prefix) - len(suffix))
+    if len(subject) > available:
+        subject = subject[:available - 3].rstrip() + "..."
+    return prefix + subject + suffix
 
 
 class GitHubClient:
@@ -112,7 +131,8 @@ def client_bundle(client: Client, state: ProjectState, *, master: str, revision:
     return files
 
 
-def publish_bundle(api, client: Client, files: dict[str, str]) -> str | None:
+def publish_bundle(api, client: Client, files: dict[str, str], *,
+                   email_subject: str | None = None, snapshot_version: int | None = None) -> str | None:
     """Atomically commit one client's shared kit and state; never write master."""
     if api.repository.casefold() != client.repository.casefold():
         raise PermissionError("GitHub target does not match client registry")
@@ -153,7 +173,8 @@ def publish_bundle(api, client: Client, files: dict[str, str]) -> str | None:
         api.request("POST", "git/refs", {"ref": f"refs/heads/{branch}", "sha": new_commit["sha"]})
     # A retry may find the already-created immutable branch. Do not force-push it.
     pr = api.request("POST", "pulls", {
-        "title": f"Update {client.client_id} agent context", "head": branch,
+        "title": context_pr_title(client.client_id, version=snapshot_version,
+                                  email_subject=email_subject), "head": branch,
         "base": client.base_branch,
         "body": "Client-isolated synthetic context and versioned master agent kit. "
                 "Review evidence, consent questions, and conflicts. Merge only the newest "
@@ -178,7 +199,8 @@ def mapped_bundle(registry, project, mapping, state, revision):
     return client, files
 
 
-def sync_project(project_id, *, registry=None, store=None, read_state=None, api_factory=None, revision=None):
+def sync_project(project_id, *, registry=None, store=None, read_state=None, api_factory=None,
+                 revision=None, email_subject=None):
     from backend.database.supabase_client import SupabaseMemoryStore
     from backend.services.memory import MemoryService
 
@@ -198,7 +220,8 @@ def sync_project(project_id, *, registry=None, store=None, read_state=None, api_
             client, files = mapped_bundle(registry, project, mapping, state,
                                           revision or os.environ["MASTER_REVISION"])
             api = api_factory(client) if api_factory else GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
-            result = publish_bundle(api, client, files)
+            result = publish_bundle(api, client, files, email_subject=email_subject,
+                                    snapshot_version=state.version)
             store._rpc("record_sync", p_mapping=mapping.mapping_id, p_version=state.version,
                        p_status="published" if result else "unchanged")
             results.append({"mapping_id": mapping.mapping_id, "pull_request": result})
@@ -210,7 +233,8 @@ def sync_project(project_id, *, registry=None, store=None, read_state=None, api_
     return results
 
 
-def sync_client(client: Client, *, registry=None, read_state=None, api=None, revision=None):
+def sync_client(client: Client, *, registry=None, read_state=None, api=None, revision=None,
+                email_subject=None):
     from backend.services.memory import get_project_state
 
     registry = registry or load_registry()
@@ -220,7 +244,7 @@ def sync_client(client: Client, *, registry=None, read_state=None, api=None, rev
     files = client_bundle(client, state, master=registry.master_repository,
                           revision=revision or os.environ["MASTER_REVISION"])
     api = api or GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
-    return publish_bundle(api, client, files)
+    return publish_bundle(api, client, files, email_subject=email_subject, snapshot_version=state.version)
 
 
 def provision_client(client: Client, token: str) -> None:
