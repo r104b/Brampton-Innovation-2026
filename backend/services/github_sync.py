@@ -36,6 +36,13 @@ def context_pr_title(client_id: str, *, version: int | None = None,
     return prefix + subject + suffix
 
 
+def master_revision(revision: str | None = None) -> str:
+    """Return the running master commit, with explicit/local overrides for offline use."""
+    if revision:
+        return revision
+    return os.getenv("RENDER_GIT_COMMIT") or os.environ["MASTER_REVISION"]
+
+
 class GitHubClient:
     def __init__(self, repository: str, token: str):
         self.repository = repository
@@ -139,12 +146,15 @@ def publish_bundle(api, client: Client, files: dict[str, str], *,
     metadata = api.request("GET", "")
     if not metadata or not metadata.get("private"):
         raise PermissionError("Provision a private client repository first")
-    changed = False
+    changed_paths = []
     for path, text in sorted(files.items()):
         current = api.request("GET", f"contents/{path}?{urlencode({'ref': client.base_branch})}")
         if not current or base64.b64decode(current["content"]).decode("utf-8") != text:
-            changed = True
-    if not changed:
+            changed_paths.append(path)
+    # A deployment SHA alone is metadata, not a client-context update. Avoid
+    # opening a client PR just because the backend was redeployed.
+    content_paths = [path for path in changed_paths if path != ".sentra/master.json"]
+    if not content_paths:
         return None
     digest = hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest()[:24]
     branch = "automation/client-context-" + digest
@@ -172,13 +182,25 @@ def publish_bundle(api, client: Client, files: dict[str, str], *,
     if existing_ref is None:
         api.request("POST", "git/refs", {"ref": f"refs/heads/{branch}", "sha": new_commit["sha"]})
     # A retry may find the already-created immutable branch. Do not force-push it.
+    state_paths = [path for path in content_paths
+                   if path.endswith("/state.json") or path.endswith("/CURRENT_STATE.md")
+                   or path == "context/CURRENT_STATE.md"]
+    summary = ["Changed files compared with the base branch:"]
+    summary.extend(f"- `{path}`" for path in content_paths)
+    summary.append("")
+    summary.append("Project context/state changed: " + ("yes" if state_paths else "no"))
+    if ".sentra/master.json" in changed_paths:
+        summary.append("The bundle also pins the master revision used to generate this update.")
+    summary.extend([
+        "",
+        "Review evidence, consent questions, and conflicts. Merge only the newest state version;",
+        "close stale snapshot PRs. No automatic merge.",
+    ])
     pr = api.request("POST", "pulls", {
         "title": context_pr_title(client.client_id, version=snapshot_version,
                                   email_subject=email_subject), "head": branch,
         "base": client.base_branch,
-        "body": "Client-isolated synthetic context and versioned master agent kit. "
-                "Review evidence, consent questions, and conflicts. Merge only the newest "
-                "state version; close stale snapshot PRs. No automatic merge.",
+        "body": "\n".join(summary),
     })
     return pr["html_url"]
 
@@ -218,7 +240,7 @@ def sync_project(project_id, *, registry=None, store=None, read_state=None, api_
     for mapping in routing.destinations:
         try:
             client, files = mapped_bundle(registry, project, mapping, state,
-                                          revision or os.environ["MASTER_REVISION"])
+                                          master_revision(revision))
             api = api_factory(client) if api_factory else GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
             result = publish_bundle(api, client, files, email_subject=email_subject,
                                     snapshot_version=state.version)
@@ -242,7 +264,7 @@ def sync_client(client: Client, *, registry=None, read_state=None, api=None, rev
         raise PermissionError("Client is not the registered destination")
     state = (read_state or get_project_state)(client.project_id)
     files = client_bundle(client, state, master=registry.master_repository,
-                          revision=revision or os.environ["MASTER_REVISION"])
+                          revision=master_revision(revision))
     api = api or GitHubClient(client.repository, os.environ["CONTEXT_GITHUB_TOKEN"])
     return publish_bundle(api, client, files, email_subject=email_subject, snapshot_version=state.version)
 

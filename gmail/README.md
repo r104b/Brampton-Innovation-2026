@@ -19,8 +19,10 @@ To publish generated context as client-repository pull requests, first confirm
 each active Supabase mapping points to an existing private repository and base
 branch. Then set `CLIENT_SYNC_ENABLED=true` in the Render service and provide
 `CONTEXT_GITHUB_TOKEN` with repository Contents and Pull requests read/write
-permissions, plus `MASTER_REVISION` set to the exact master commit running on
-Render. The sync opens or reuses a reviewable pull request; it never merges it.
+permissions. On Render, the backend reads its automatic `RENDER_GIT_COMMIT`
+value, so no revision env var needs manual updates. `MASTER_REVISION` is only a
+local fallback. The sync opens or reuses a reviewable pull request; it never
+merges it.
 `CLIENT_SYNC_ENABLED` is dashboard-managed so Blueprint syncs preserve the
 chosen setting. Keep publishing disabled until those destinations and
 credentials are ready.

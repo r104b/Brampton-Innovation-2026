@@ -44,6 +44,7 @@ async def ingest_email(
         from backend.services.identification import ingest_identified, identify
 
         normalized = payload.model_copy(update={"sender": parseaddr(payload.sender)[1].casefold()})
+        stage = "project identification"
         try:
             project_id, candidate_ids, _ = identify(registry, normalized)
             header = request.headers.get("x-sentra-client-id")
@@ -52,12 +53,16 @@ async def ingest_email(
             if header and ((project is not None and header != project.customer_id)
                            or (project is None and candidate_customers != {header})):
                 raise PermissionError("Customer header does not match project")
+            stage = "database capture, extraction, and commit"
             result, project_id = await run_in_threadpool(
                 ingest_identified, registry, normalized, SupabaseMemoryStore.from_env()
             )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail="Project access denied") from exc
         except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Email ingestion failed during %s (%s)", stage, type(exc).__name__
+            )
             raise HTTPException(status_code=503, detail="Ingestion temporarily unavailable") from exc
         if project_id and os.getenv("CLIENT_SYNC_ENABLED", "false").lower() == "true":
             background_tasks.add_task(sync_after_ingestion, project_id, registry, email_subject=payload.subject)
@@ -81,6 +86,9 @@ async def ingest_email(
     except (LookupError, PermissionError) as exc:
         raise HTTPException(status_code=403, detail="Project access denied") from exc
     except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Email ingestion failed during durable storage (%s)", type(exc).__name__
+        )
         raise HTTPException(status_code=503, detail="Ingestion temporarily unavailable") from exc
 
     if os.getenv("CLIENT_SYNC_ENABLED", "false").lower() == "true":

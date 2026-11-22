@@ -2,13 +2,12 @@
 
 import argparse
 import hashlib
-import os
 from pathlib import Path
 
 from backend.models.routing import RoutingRegistry
 from backend.models.schemas import ProjectState
 from backend.services.context_router import load_routing_registry, route_context
-from backend.services.github_sync import mapped_bundle
+from backend.services.github_sync import mapped_bundle, master_revision
 from backend.services.memory import get_project_state
 
 
@@ -43,7 +42,7 @@ def main():
         revision = "offline-fixture"
     else:
         registry, state = load_routing_registry(), get_project_state(args.project_id)
-        revision = os.environ["MASTER_REVISION"]
+        revision = master_revision()
     if state.project_id != args.project_id:
         raise PermissionError("Snapshot does not match requested project")
     routing = export_project(registry, state, args.output_root, revision=revision)

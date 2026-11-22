@@ -10,10 +10,19 @@ from pydantic import ValidationError
 from backend.main import app
 from backend.models.schemas import IngestionResponse, ProjectState
 from backend.services.clients import ClientRegistry, route_email
-from backend.services.github_sync import client_bundle, publish_bundle, sync_client
+from backend.services.github_sync import client_bundle, master_revision, publish_bundle, sync_client
 from test_memory import email
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_master_revision_uses_running_render_commit_and_local_fallback(monkeypatch):
+    monkeypatch.setenv("MASTER_REVISION", "local-fallback")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "render-sha")
+    assert master_revision() == "render-sha"
+    assert master_revision("explicit-sha") == "explicit-sha"
+    monkeypatch.delenv("RENDER_GIT_COMMIT")
+    assert master_revision() == "local-fallback"
 
 
 @pytest.fixture
@@ -146,6 +155,30 @@ def test_email_title_does_not_create_a_duplicate_branch_or_rename_existing_pr(re
     replay = FakeRepo(client, prs=[{"html_url": "existing"}])
     assert publish_bundle(replay, client, files, email_subject="Repeated feedback", snapshot_version=3) == "existing"
     assert all(method == "GET" for method, _, _ in replay.calls)
+
+
+def test_master_revision_only_does_not_create_client_context_pr(registry):
+    client = registry.clients[0]
+    old_files = client_bundle(client, state_for(client), master=registry.master_repository,
+                              revision="old-deploy")
+    new_files = client_bundle(client, state_for(client), master=registry.master_repository,
+                              revision="new-deploy")
+    repo = FakeRepo(client, content=old_files)
+    assert publish_bundle(repo, client, new_files) is None
+    assert all(method == "GET" for method, _, _ in repo.calls)
+
+
+def test_context_pr_body_lists_changed_files(registry):
+    client = registry.clients[0]
+    old_files = client_bundle(client, state_for(client), master=registry.master_repository,
+                              revision="same-deploy")
+    new_files = dict(old_files)
+    new_files["context/CURRENT_STATE.md"] += "\nNew fictional requirement.\n"
+    repo = FakeRepo(client, content=old_files)
+    publish_bundle(repo, client, new_files)
+    pull = next(data for method, path, data in repo.calls if method == "POST" and path == "pulls")
+    assert "`context/CURRENT_STATE.md`" in pull["body"]
+    assert "Project context/state changed: yes" in pull["body"]
 
 
 def test_public_or_wrong_repository_rejected(registry):

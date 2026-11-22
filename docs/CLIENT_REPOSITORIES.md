@@ -78,8 +78,9 @@ Authorization must still happen in the backend before calling privileged RPCs.
 ## Configuration and API
 
 Set process variables from `.env.example`; files are not auto-loaded. Runtime
-registry defaults to Supabase. Set `MASTER_REPOSITORY` and exact
-`MASTER_REVISION`, plus test Supabase and Gemini credentials. `INGEST_TOKEN`
+registry defaults to Supabase. Set `MASTER_REPOSITORY`, plus test Supabase and
+Gemini credentials. On Render, `RENDER_GIT_COMMIT` supplies the exact running
+commit automatically; `MASTER_REVISION` is only a local fallback. `INGEST_TOKEN`
 authenticates the dedicated Gmail forwarder. `CLIENT_SYNC_ENABLED=true` enables
 best-effort background PR publication after ingestion or item assignment.
 

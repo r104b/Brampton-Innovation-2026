@@ -19,8 +19,6 @@ services:
         sync: false
       - key: MASTER_REPOSITORY
         sync: false
-      - key: MASTER_REVISION
-        sync: false
       - key: CONTEXT_GITHUB_TOKEN
         sync: false
       - key: CLIENT_SYNC_ENABLED
