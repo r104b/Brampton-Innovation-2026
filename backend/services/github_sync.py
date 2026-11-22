@@ -102,9 +102,9 @@ def client_bundle(client: Client, state: ProjectState, *, master: str, revision:
             "agent_purpose": client.agent_purpose, "synthetic": client.synthetic,
         }, indent=2) + "\n",
         ".sentra/master.json": json.dumps({"repository": master, "revision": revision,
-                                           "kit_version": 1}, indent=2) + "\n",
+                                           "kit_version": 2}, indent=2) + "\n",
     }
-    for name in ("AGENTS.md", "CLAUDE.md", "context_reader.py"):
+    for name in ("AGENTS.md", "CLAUDE.md", "context_reader.py", "context_api.py"):
         target = name if name.endswith(".md") else "agent-kit/" + name
         files[target] = (ROOT / "agent-kit" / name).read_text(encoding="utf-8")
     if any(_SECRET.search(text) or _EMAIL.search(text) for text in files.values()):

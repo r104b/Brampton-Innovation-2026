@@ -32,6 +32,20 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-id")
+    parser.add_argument("--offline", action="store_true", help="Inspect cached state with unverified freshness")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    print(json.dumps(read_context(root, args.project_id), indent=2))
+    if args.offline:
+        print(json.dumps({"freshness": "unverified", "basis": "offline_repository_snapshot",
+                          "instruction": "Do not claim this is current or complete history.",
+                          **read_context(root, args.project_id)}, indent=2))
+    else:
+        from context_api import ContextAPI
+
+        try:
+            print(json.dumps(ContextAPI.from_env().current(root, args.project_id), indent=2))
+        except (RuntimeError, ValueError, PermissionError, KeyError, OSError):
+            print(json.dumps({"freshness": "unverified", "status": "unavailable",
+                              "answer": "Not enough verified information.",
+                              "reason": "Live retrieval failed. Use --offline only for explicitly labeled cached inspection."}))
+            raise SystemExit(1)

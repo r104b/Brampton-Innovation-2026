@@ -45,3 +45,27 @@ jobs:
           --output context/CURRENT_STATE.md --fixture
       - name: Verify committed snapshot is current
         run: git diff --exit-code -- context/CURRENT_STATE.md
+
+  database-history:
+    name: PostgreSQL history and isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: disposable-ci-password
+          POSTGRES_DB: sentra_test
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sentra_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Apply migrations and exercise actual history triggers
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: bash .github/ci/test_history.sh

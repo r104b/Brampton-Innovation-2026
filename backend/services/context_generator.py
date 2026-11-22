@@ -13,6 +13,8 @@ _SECRET = re.compile(
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----"
     r"|\bBearer\s+[A-Za-z0-9._~+/=-]+"
     r"|\b(?:sk-|ghp_|github_pat_)[A-Za-z0-9_-]+"
+    r"|\bsb_secret_[A-Za-z0-9_-]+"
+    r"|\beyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
     r"|\b(?:api[_-]?key|token|password|secret)\s*[:=]\s*[^\s,;]+",
     re.IGNORECASE | re.DOTALL,
 )

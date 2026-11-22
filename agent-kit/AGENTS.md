@@ -1,5 +1,47 @@
 # Client agent entry point
 
+## Retrieve before answering
+
+The repository snapshot is a cache. Before claiming CURRENT project facts, run:
+
+```sh
+python agent-kit/context_api.py current --project-id PROJECT_ID
+```
+
+The operator supplies `SENTRA_API_URL` (backend origin, HTTPS or local loopback)
+and `SENTRA_API_TOKEN` (read credential scoped to this project) in the local agent
+process environment. Never use or copy Supabase/GitHub service credentials here.
+If not configured or unreachable, the tool exits with unverified freshness.
+Do not silently answer from the cache as if it were current. Report the
+limitation; use `context_reader.py --offline` only for labeled cached inspection.
+
+The current command compares local version AND content fingerprint with the
+database and returns authoritative state directly, even while a PR is unmerged.
+Use that response for project facts, preserving pending conflicts and open
+consent questions. It does not authorize code changes or merge proposals.
+
+For historical questions, distinguish:
+
+```sh
+python agent-kit/context_api.py history --project-id PROJECT_ID --as-of 2025-09-03T00:00:00-04:00
+python agent-kit/context_api.py sources --project-id PROJECT_ID --start 2025-09-02T00:00:00-04:00 --end 2025-09-03T00:00:00-04:00
+```
+
+The first asks for the latest recorded state at or before that instant. The
+second asks for sources dated within a half-open receipt interval; it does NOT
+prove the team knew those facts then. Use explicit timezone offsets. History
+before recording began is unavailable, even if a source has an older date.
+Do not invent past states. A truncated source result is incomplete; narrow the
+date interval. No match means "Not enough verified information."
+
+Before giving status/evidence claims, construct a CitationRequest JSON file and
+run `context_api.py verify --project-id PROJECT_ID --citations FILE`. Each entry
+specifies `record_type`, `record_id`, `source_id`, `evidence_id`, and optionally
+`expected_status` and `excerpt`. Use top-level `version` or `as_of` for historical
+claims. Reject failed citations. Verification checks recorded status, exact IDs,
+and real source spans; it does not prove that arbitrary prose follows logically
+from a quote. Never turn a pending proposal into an applied fact or QA assertion.
+
 Read `.sentra/client.json`, `.sentra/master.json`, and `context/CURRENT_STATE.md`
 at the start of each session. This repository belongs to exactly one client.
 If the project uses a mapped subfolder, locate its `context/**/client.json` and

@@ -152,10 +152,14 @@ context/<optional-project-folder>/state.json
 ...existing client product code...
 ```
 
+Shared kit v2 adds `agent-kit/context_api.py` for live retrieval and citation
+validation. Configure project-scoped credentials per
+[LIVE_RETRIEVAL.md](LIVE_RETRIEVAL.md), and apply migration 003 after routing setup.
 Shared kit files are generated; keep custom product code elsewhere. The shared
 kit supplies context recovery for coding agents, not arbitrary business-agent
 runtime deployment. Original master `context/` files remain fictional test
-artifacts. Historical date lookup remains separate from current-state recovery.
+artifacts. Historical lookup now uses actual recorded snapshots and date-scoped
+evidence; it never invents states from before history capture began.
 
 ## Validation limits
 

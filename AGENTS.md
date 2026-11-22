@@ -15,6 +15,14 @@ JSON registry as fixture compatibility only.
 
 ## Start each session
 
+For current or historical CLIENT project claims, follow `docs/LIVE_RETRIEVAL.md`.
+Use the project-scoped live tool in the client checkout before answering current
+facts. Static Markdown is a cache, not proof of freshness. If live retrieval is
+unavailable, report unverified freshness. Date queries must distinguish recorded
+historical state from original source receipt dates; do not invent pre-capture
+history. Validate record/status/source claims with the citation verifier. The
+master's fixture snapshot still applies only to offline development examples.
+
 Read `context/CURRENT_STATE.md` before planning or changing project behavior.
 When `context/DATABASE_STATE.md` exists, read it too and use it for its own
 project's database-exported state. Do not combine different project IDs or

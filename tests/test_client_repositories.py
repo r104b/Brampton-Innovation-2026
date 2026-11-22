@@ -118,7 +118,7 @@ def test_sync_targets_client_repo_and_commits_bundle_atomically(registry):
     assert len(trees) == 1
     assert trees[0]["base_tree"] == "old-tree"
     assert {entry["path"] for entry in trees[0]["tree"]} == {
-        "AGENTS.md", "CLAUDE.md", "agent-kit/context_reader.py", ".sentra/client.json",
+        "AGENTS.md", "CLAUDE.md", "agent-kit/context_reader.py", "agent-kit/context_api.py", ".sentra/client.json",
         ".sentra/master.json", "context/CURRENT_STATE.md", "context/state.json",
     }
     assert not any(method == "PATCH" for method, _, _ in repo.calls)

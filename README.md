@@ -9,6 +9,9 @@ extraction -> evidence-backed Supabase state -> client-specific kit/context PR
 -> review and merge -> fresh coding-agent session in that client's repository.
 
 Read [the architecture and setup guide](docs/CLIENT_REPOSITORIES.md) first.
+For current-state freshness, historical queries, and the read-only coding-agent
+tool, see [live retrieval](docs/LIVE_RETRIEVAL.md). Apply migration 003 to enable
+recorded history; the client kit now retrieves live state by default.
 It supersedes the earlier single-repository deployment plan. The design follows
 the supplied Challenge 8 briefs: retain completed work, surface open questions,
 preserve evidence, and support more than one coding agent. The separate-repo
@@ -63,5 +66,6 @@ python -m backend.services.context_generator --input sample-data/project-state.j
 
 Live Gmail forwarding, Supabase configuration, private repository creation, and
 PR publication require team-owned test credentials. Offline tests do not prove
-those external integrations. Historical date queries and deployment of arbitrary
-business agents are outside the implemented context-recovery service.
+those external integrations. Historical lookup is limited to actually recorded
+snapshots and dated evidence; missing history is never reconstructed by guessing.
+Deployment of arbitrary business agents is outside this context-recovery service.
