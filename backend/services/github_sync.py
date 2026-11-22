@@ -23,7 +23,10 @@ class GitHubClient:
         self.token = token
 
     def request(self, method: str, path: str, data=None):
-        return self.api(method, f"repos/{self.repository}/{path}", data)
+        endpoint = f"repos/{self.repository}"
+        if path:
+            endpoint += f"/{path}"
+        return self.api(method, endpoint, data)
 
     def api(self, method: str, path: str, data=None):
         request = Request(

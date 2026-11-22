@@ -27,7 +27,8 @@ class SupabaseMemoryStore:
         )
         try:
             with urlopen(request, timeout=30) as response:
-                return json.load(response)
+                body = response.read()
+                return json.loads(body) if body.strip() else None
         except HTTPError as error:
             raise RuntimeError(f"Memory database request failed (HTTP {error.code})") from None
 

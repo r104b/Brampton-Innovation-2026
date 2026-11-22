@@ -3,6 +3,17 @@ import base64
 from backend.services.github_sync import publish_snapshot
 
 
+def test_repository_metadata_url_has_no_trailing_slash(monkeypatch):
+    from backend.services.github_sync import GitHubClient
+
+    client = GitHubClient("team/demo", "fictional-token")
+    calls = []
+    monkeypatch.setattr(client, "api", lambda method, path, data: calls.append(path))
+    client.request("GET", "")
+    client.request("GET", "git/ref/heads/main")
+    assert calls == ["repos/team/demo", "repos/team/demo/git/ref/heads/main"]
+
+
 class FakeGitHub:
     repository = "team/demo"
 
