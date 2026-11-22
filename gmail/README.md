@@ -21,7 +21,9 @@ branch. Then set `CLIENT_SYNC_ENABLED=true` in the Render service and provide
 `CONTEXT_GITHUB_TOKEN` with repository Contents and Pull requests read/write
 permissions, plus `MASTER_REVISION` set to the exact master commit running on
 Render. The sync opens or reuses a reviewable pull request; it never merges it.
-Keep publishing disabled until those destinations and credentials are ready.
+`CLIENT_SYNC_ENABLED` is dashboard-managed so Blueprint syncs preserve the
+chosen setting. Keep publishing disabled until those destinations and
+credentials are ready.
 
 Create Apps Script from `Code.gs` in a dedicated test mailbox. Configure Script
 Properties `INGEST_URL` (HTTPS backend `/api/ingest/email`), `INGEST_TOKEN`, and

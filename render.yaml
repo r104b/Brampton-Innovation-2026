@@ -24,4 +24,4 @@ services:
       - key: CONTEXT_GITHUB_TOKEN
         sync: false
       - key: CLIENT_SYNC_ENABLED
-        value: "false"
+        sync: false
