@@ -1,5 +1,7 @@
 # SentraContext master
 
+Watch the demo here: https://drive.google.com/file/d/1y4DeLZz7sIqhNcYqSRQhKxWWY2XTA0bV/view?usp=drive_link
+
 This repository owns the shared context engine. Each fictional client has its
 own private GitHub repository containing a versioned agent kit, client manifest,
 and only that client's context and product code.
